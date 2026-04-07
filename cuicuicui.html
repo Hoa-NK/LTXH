@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Công cụ Tối ưu hóa Hệ thống Thanh toán - TVU</title>
+    <style>
+        :root { --primary: #2c3e50; --accent: #27ae60; --bg: #f0f2f5; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: var(--bg); display: flex; justify-content: center; padding: 20px; }
+        .card { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); width: 100%; max-width: 450px; }
+        h2 { color: var(--primary); text-align: center; font-size: 1.2rem; border-bottom: 2px solid var(--accent); padding-bottom: 10px; }
+        
+        .tab-container { display: flex; margin-bottom: 20px; background: #eee; border-radius: 8px; padding: 5px; }
+        .tab { flex: 1; text-align: center; padding: 10px; cursor: pointer; border-radius: 6px; transition: 0.3s; font-weight: bold; }
+        .tab.active { background: var(--accent); color: white; }
+
+        .input-group { margin-bottom: 15px; }
+        label { display: block; font-size: 0.85rem; margin-bottom: 5px; color: #555; }
+        input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px; box-sizing: border-box; font-size: 1rem; }
+        
+        button { width: 100%; padding: 15px; background: var(--primary); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 1rem; font-weight: bold; transition: 0.3s; margin-top: 10px; }
+        button:hover { background: #34495e; transform: translateY(-2px); }
+
+        #result { margin-top: 20px; display: none; background: #f9f9f9; padding: 15px; border-radius: 8px; border-left: 5px solid var(--accent); }
+        .res-row { display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 0.95rem; }
+        .res-val { font-weight: bold; color: var(--accent); }
+        .alert { color: #e74c3c; font-weight: bold; text-align: center; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+
+<div class="card">
+    <h2>TỐI ƯU HỆ THỐNG THANH TOÁN</h2>
+    
+    <div class="tab-container">
+        <div id="tab1" class="tab active" onclick="switchMode('MM1')">Mô hình M/M/1</div>
+        <div id="tab2" class="tab" onclick="switchMode('MMs')">Mô hình M/M/s</div>
+    </div>
+
+    <div class="input-group">
+        <label>Cường độ khách đến (&lambda; - khách/giờ):</label>
+        <input type="number" id="lambda" placeholder="VD: 30" value="30">
+    </div>
+    
+    <div class="input-group">
+        <label>Tốc độ phục vụ 1 quầy (&mu; - khách/giờ):</label>
+        <input type="number" id="mu" placeholder="VD: 12" value="12">
+    </div>
+    
+    <div id="s_group" class="input-group" style="display:none;">
+        <label>Số lượng quầy mở (s):</label>
+        <input type="number" id="s_val" value="3">
+    </div>
+
+    <button onclick="runCalculation()">TÍNH TOÁN NGAY</button>
+
+    <div id="result">
+        <div id="res_content"></div>
+    </div>
+</div>
+
+<script>
+    let currentMode = 'MM1';
+
+    function switchMode(mode) {
+        currentMode = mode;
+        document.getElementById('tab1').classList.toggle('active', mode === 'MM1');
+        document.getElementById('tab2').classList.toggle('active', mode === 'MMs');
+        document.getElementById('s_group').style.display = (mode === 'MMs') ? 'block' : 'none';
+        document.getElementById('result').style.display = 'none';
+    }
+
+    function factorial(n) {
+        return (n <= 1) ? 1 : n * factorial(n - 1);
+    }
+
+    function runCalculation() {
+        const lam = parseFloat(document.getElementById('lambda').value);
+        const mu = parseFloat(document.getElementById('mu').value);
+        const s = (currentMode === 'MM1') ? 1 : parseInt(document.getElementById('s_val').value);
+        
+        const rho = lam / (s * mu);
+        const resDiv = document.getElementById('result');
+        const content = document.getElementById('res_content');
+
+        if (rho >= 1) {
+            content.innerHTML = `<p class="alert">Hệ thống quá tải! (&rho; = ${rho.toFixed(2)})<br>Hàng đợi sẽ kéo dài vô hạn[cite: 30].</p>`;
+            resDiv.style.display = 'block';
+            return;
+        }
+
+        let p0, lq, wqMin;
+
+        if (currentMode === 'MM1') {
+            // Công thức M/M/1
+            p0 = 1 - rho;
+            lq = (rho * rho) / (1 - rho);
+        } else {
+            // Công thức M/M/s [cite: 38, 40]
+            let sumPart = 0;
+            for (let n = 0; n < s; n++) {
+                sumPart += Math.pow(lam / mu, n) / factorial(n);
+            }
+            let tailPart = Math.pow(lam / mu, s) / (factorial(s) * (1 - rho));
+            p0 = 1 / (sumPart + tailPart);
+            lq = (p0 * Math.pow(lam / mu, s) * rho) / (factorial(s) * Math.pow(1 - rho, 2));
+        }
+
+        wqMin = (lq / lam) * 60;
+
+        content.innerHTML = `
+            <div class="res-row"><span>Hệ số sử dụng (&rho;):</span> <span class="res-val">${(rho * 100).toFixed(1)}%</span></div>
+            <div class="res-row"><span>Xác suất trống (P0):</span> <span class="res-val">${(p0 * 100).toFixed(1)}%</span></div>
+            <div class="res-row"><span>Khách chờ TB (Lq):</span> <span class="res-val">${lq.toFixed(2)} người</span></div>
+            <div class="res-row"><span>Thời gian chờ (Wq):</span> <span class="res-val">${wqMin.toFixed(2)} phút</span></div>
+            <hr>
+            <p style="text-align:center; font-size:0.8rem; margin:0;">
+                ${wqMin > 5 ? "⚠️ Cần mở thêm quầy để tối ưu!" : "✅ Hệ thống đang vận hành tốt."}
+            </p>
+        `;
+        resDiv.style.display = 'block';
+    }
+</script>
+
+</body>
+</html>
